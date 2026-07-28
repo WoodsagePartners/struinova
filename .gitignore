@@ -3,4 +3,5 @@
 .env*.local
 node_modules
 
-.vercel
+# nested duplicate working copy, removed 2026-07-27
+Struinova Innovation/
