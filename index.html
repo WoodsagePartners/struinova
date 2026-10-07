@@ -685,7 +685,9 @@ footer a{color:var(--orange);text-decoration:none}
           <button class="btn ghost" id="dlBrief">Download my brief (PDF)</button>
           <a class="btn ghost" id="calBrief" href="https://cal.com/brumbarger" target="_blank" rel="noopener">Book on cal.com &rarr;</a>
         </div>
-        <div class="tiny">Tip: hit Download first, then Send, and attach the PDF to the email it opens. It goes straight to ron@struinova.com. No lists, no drip campaigns, just a reply from a human.</div>
+        <input id="fWebsite" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+        <div class="tiny" id="sendStatus" role="status" aria-live="polite"></div>
+        <div class="tiny">Send my brief delivers it, along with our conversation, straight to Ron's inbox. Download the PDF too if you want a copy for your team. No lists, no drip campaigns, just a reply from a human.</div>
       </div>
     </div>
   </div>
@@ -1672,15 +1674,17 @@ if(nudgeDl) nudgeDl.onclick = ()=>{
   downloadBrief();
 };
 
-document.getElementById('sendBrief').onclick = ()=>{
+document.getElementById('sendBrief').onclick = async ()=>{
+  const btn=document.getElementById('sendBrief');
+  const status=document.getElementById('sendStatus');
   const name=document.getElementById('fName').value.trim();
   const email=document.getElementById('fEmail').value.trim();
   const org=document.getElementById('fOrg').value.trim();
   const note=document.getElementById('fNote').value.trim();
-  const primary = selected.length ? selected[0].cat : 'custom';
+  const hp=(document.getElementById('fWebsite')||{}).value||'';
   const body = [
     'Hi Ron,','',
-    'I ran my challenge through the Reframing Engine on struinova.com. My full brief is attached as a PDF.','',
+    'I ran my challenge through the Reframing Engine on struinova.com.','',
     'Name: '+(name||'(not given)'),
     'Organization: '+(org||'(not given)'),
     'Website: '+(siteVal()||'(not given)'),
@@ -1688,7 +1692,29 @@ document.getElementById('sendBrief').onclick = ()=>{
     (note ? 'Notes: '+note : ''),'',
     'Looking forward to a conversation.'
   ].filter(l=>l!==null).join('\n');
-  window.location.href='mailto:ron@struinova.com?subject='+encodeURIComponent('Challenge brief: '+(org||name||'new visitor'))+'&body='+encodeURIComponent(body);
+  const mailtoFallback = ()=>{
+    window.location.href='mailto:ron@struinova.com?subject='+encodeURIComponent('Challenge brief: '+(org||name||'new visitor'))+'&body='+encodeURIComponent(body);
+  };
+  // Without an email address Ron cannot reply, so use the visitor's own mail app instead.
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    if(status) status.textContent='Add your email above so Ron can reply, or we will open your mail app instead.';
+    mailtoFallback();
+    return;
+  }
+  const label=btn.textContent;
+  btn.disabled=true; btn.textContent='Sending...';
+  if(status) status.textContent='';
+  try{
+    const r = await fetch('/api/send-brief', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name, email, org, site: siteVal(), note, hp, challenges: selected.map(s=>s.text), history: aiHistory})});
+    if(!r.ok) throw new Error('send');
+    btn.textContent='Sent. Thank you.';
+    if(status) status.textContent='Your brief is on its way to Ron. Expect a reply from a human, usually within a day.';
+  }catch(e){
+    btn.disabled=false; btn.textContent=label;
+    if(status) status.textContent='We could not send that just now, so we opened your mail app instead.';
+    mailtoFallback();
+  }
 };
 </script>
 <!-- Vercel Web Analytics -->
